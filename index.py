@@ -764,7 +764,6 @@ def make_request_with_retries(url, headers, data, method="PUT", max_retries=5):
 
 def update_shopify_variant(shop, access_token, variant_id, inventory_item_id, new_price, new_quantity, sku):
     headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": access_token}
-    success = True
 
     print(f"🔄 Обновляем variant {variant_id} (SKU: {sku}): Цена {new_price}, Количество {new_quantity}")
 
@@ -772,45 +771,43 @@ def update_shopify_variant(shop, access_token, variant_id, inventory_item_id, ne
     variant_data = {"variant": {"id": variant_id, "price": f"{new_price:.2f}"}}
 
     max_retries = 5
-    delay = 2
+    delay = 2  # Начальная задержка в секундах
 
     for attempt in range(max_retries):
         response = requests.put(update_variant_url, headers=headers, json=variant_data)
+
         if response.status_code == 200:
-            print(f"✅ Цена обновлена для variant {variant_id} (SKU: {sku})")
-            break
+            print(f"✅ Успешно обновлена цена для variant {variant_id} (SKU: {sku}): {new_price}")
+            break  # Выходим из цикла, если обновление прошло успешно
         elif response.status_code == 429:
-            print(f"⚠️ 429 при обновлении цены {sku}. Повтор через {delay} сек...")
+            print(f"⚠️ Ошибка 429 (Too Many Requests) при обновлении цены {sku}. Повтор через {delay} секунд...")
             time.sleep(delay)
-            delay *= 2
+            delay *= 2  # Увеличиваем задержку в 2 раза
         else:
-            print(f"❌ Ошибка обновления цены для SKU `{sku}`: {response.status_code} - {response.text}")
-            success = False
-            break
+            print(
+                f"❌ Ошибка обновления цены для variant {variant_id} (SKU: {sku}): {response.status_code} - {response.text}")
+            break  # Прерываем цикл при других ошибках
 
-    # Количество
+    # Обновление количества товара
     update_inventory_url = f"https://{shop}/admin/api/2024-01/inventory_levels/set.json"
-    inventory_data = {
-        "location_id": 85726363936,
-        "inventory_item_id": inventory_item_id,
-        "available": new_quantity
-    }
+    inventory_data = {"location_id": 85726363936, "inventory_item_id": inventory_item_id, "available": new_quantity}
 
-    delay = 2
+    delay = 2  # Сбрасываем задержку перед обновлением количества
+
     for attempt in range(max_retries):
         response = requests.post(update_inventory_url, headers=headers, json=inventory_data)
-        if response.status_code == 200:
-            print(f"✅ Кол-во обновлено для SKU {sku}: {new_quantity}")
-            return success  # успех или нет по цене
-        elif response.status_code == 429:
-            print(f"⚠️ 429 при обновлении количества {sku}. Повтор через {delay} сек...")
-            time.sleep(delay)
-            delay *= 2
-        else:
-            print(f"❌ Ошибка обновления количества SKU `{sku}`: {response.status_code} - {response.text}")
-            return False
 
-    return success
+        if response.status_code == 200:
+            print(f"✅ Количество обновлено для variant {variant_id} (SKU: {sku}): {new_quantity}")
+            break
+        elif response.status_code == 429:
+            print(f"⚠️ Ошибка 429 (Too Many Requests) при обновлении количества {sku}. Повтор через {delay} секунд...")
+            time.sleep(delay)
+            delay *= 2  # Увеличиваем задержку
+        else:
+            print(
+                f"❌ Ошибка обновления количества для variant {variant_id} (SKU: {sku}): {response.status_code} - {response.text}")
+            break
 
 
 def sync_products(shop):
@@ -839,26 +836,6 @@ def sync_products(shop):
             v.get("sku"): (v["id"], v.get("inventory_item_id"), v.get("price"), v.get("inventory_quantity"))
             for p in shopify_products for v in p["variants"] if v.get("sku")
         }
-
-        # 🆕 Новый функционал: Обнуляем товары, которые исчезли из PowerBody
-        print(f"🔍 Сравнение SKU: определяем товары, отсутствующие в PowerBody...")
-        powerbody_skus = set(p.get("sku") for p in powerbody_products if isinstance(p, dict) and p.get("sku"))
-        shopify_skus = set(shopify_sku_map.keys())
-        missing_skus = shopify_skus - powerbody_skus
-        print(f"📦 В Shopify всего SKU: {len(shopify_skus)}")
-        print(f"📦 В PowerBody всего SKU: {len(powerbody_skus)}")
-        print(f"❌ Найдено отсутствующих SKU: {len(missing_skus)}")
-
-        for missing_sku in missing_skus:
-            variant_id, inventory_item_id, old_price, old_quantity = shopify_sku_map[missing_sku]
-            print(f"🛑 SKU `{missing_sku}` отсутствует в PowerBody. Устанавливаем количество = 0 в Shopify.")
-            result = update_shopify_variant(shop, access_token, variant_id, inventory_item_id, old_price, 0,
-                                            missing_sku)
-            if not result:
-                print(f"❌ Не удалось обновить SKU `{missing_sku}`. Продолжаем со следующим.")
-            time.sleep(0.6)
-
-
 
         synced_count = 0
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -1031,8 +1008,8 @@ def start_sync_for_shop(shop, access_token):
     existing_job = scheduler.get_job(job_id)
 
     if not existing_job:
-        print(f"🕒 Запуск фоновой синхронизации для {shop} каждые 5 минут.")
-        scheduler.add_job(sync_products, 'interval', minutes=5, args=[shop], id=job_id, replace_existing=True)
+        print(f"🕒 Запуск фоновой синхронизации для {shop} каждые 120 минут.")
+        scheduler.add_job(sync_products, 'interval', minutes=120, args=[shop], id=job_id, replace_existing=True)
 
 
 # 🔄 Запуск фоновой синхронизации при старте сервера
