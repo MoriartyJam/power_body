@@ -837,6 +837,21 @@ def sync_products(shop):
             for p in shopify_products for v in p["variants"] if v.get("sku")
         }
 
+        # 🆕 Новый функционал: Обнуляем товары, которые исчезли из PowerBody
+        print(f"🔍 Сравнение SKU: определяем товары, отсутствующие в PowerBody...")
+        powerbody_skus = set(p.get("sku") for p in powerbody_products if isinstance(p, dict) and p.get("sku"))
+        shopify_skus = set(shopify_sku_map.keys())
+        missing_skus = shopify_skus - powerbody_skus
+        print(f"📦 В Shopify всего SKU: {len(shopify_skus)}")
+        print(f"📦 В PowerBody всего SKU: {len(powerbody_skus)}")
+        print(f"❌ Найдено отсутствующих SKU: {len(missing_skus)}")
+
+        for missing_sku in missing_skus:
+            variant_id, inventory_item_id, old_price, old_quantity = shopify_sku_map[missing_sku]
+            print(f"🛑 SKU `{missing_sku}` отсутствует в PowerBody. Устанавливаем количество = 0 в Shopify.")
+            update_shopify_variant(shop, access_token, variant_id, inventory_item_id, old_price, 0, missing_sku)
+            time.sleep(0.6)
+
         synced_count = 0
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         temp_filename = os.path.join(CSV_DIR, f"~sync_temp_{timestamp}.csv")
