@@ -114,6 +114,16 @@ def get_token(shop):
         print(f"❌ Токен не найден в Redis для {shop} (TTL: {ttl} сек)")
         return None
 
+def clear_token():
+    shop = request.args.get("shop")
+    if not shop:
+        return "❌ Укажите параметр shop", 400
+
+    token_key = f"shopify_token:{shop}"
+    redis_client.delete(token_key)
+    print(f"🧹 Токен для {shop} удалён из Redis!")
+    return f"✅ Токен для {shop} успешно удалён!"
+
 
 @app.route("/")
 def home():
