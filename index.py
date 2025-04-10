@@ -114,6 +114,8 @@ def get_token(shop):
         print(f"❌ Токен не найден в Redis для {shop} (TTL: {ttl} сек)")
         return None
 
+
+@app.route("/clear_token")
 def clear_token():
     shop = request.args.get("shop")
     if not shop:
