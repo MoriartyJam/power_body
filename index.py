@@ -159,9 +159,11 @@ def install_app():
         return "❌ Ошибка: укажите магазин Shopify", 400
 
     if redis_client.ping():
+        session.modified = True  # 🛠️ Фикс для flask_session
         session["shop"] = shop
     else:
         print("⚠️ Redis не подключен. Пропускаем установку сессии.")
+    
     authorization_url = (
         f"https://{shop}/admin/oauth/authorize"
         f"?client_id={SHOPIFY_CLIENT_ID}"
