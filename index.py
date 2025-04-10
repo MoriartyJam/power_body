@@ -13,7 +13,6 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
-from flask import session, Response
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -115,7 +114,6 @@ def get_token(shop):
         print(f"❌ Токен не найден в Redis для {shop} (TTL: {ttl} сек)")
         return None
 
-
 @app.route("/clear_token")
 def clear_token():
     shop = request.args.get("shop")
@@ -126,6 +124,30 @@ def clear_token():
     redis_client.delete(token_key)
     print(f"🧹 Токен для {shop} удалён из Redis!")
     return f"✅ Токен для {shop} успешно удалён!"
+    
+
+@app.route("/clear_sessions")
+def clear_sessions():
+    store_name = request.args.get("store_name")  # Теперь читаем из query параметра
+
+    if not store_name:
+        return "❌ Параметр 'store_name' обязателен", 400
+
+    try:
+        session_pattern = f"session:{store_name}*"
+        matching_keys = redis_client.keys(session_pattern)
+
+        if not matching_keys:
+            return f"✅ Нет активных сессий для {store_name}", 200
+
+        deleted = redis_client.delete(*matching_keys)
+        print(f"🧹 Удалено {deleted} сессий для {store_name}")
+
+        return f"✅ Удалено {deleted} сессий для {store_name}", 200
+    except Exception as e:
+        print(f"❌ Ошибка при удалении сессий: {e}")
+        return f"❌ Ошибка при удалении сессий: {str(e)}", 500
+
 
 
 @app.route("/")
@@ -142,13 +164,10 @@ def home():
 
     if not access_token:
         print(f"🔄 Перенаправление на /install?shop={shop}")
-        # ✅ фикс: создаём сессию перед редиректом
-        session["shop"] = shop
         return redirect(f"/install?shop={shop}")
 
     print(f"✅ Токен найден, перенаправление на /admin?shop={shop}")
     return redirect(f"/admin?shop={shop}")
-
 
 
 @app.route("/install")
@@ -162,10 +181,8 @@ def install_app():
 
     if redis_client.ping():
         session["shop"] = shop
-        session.modified = True  # 🛠️ обязательно
     else:
         print("⚠️ Redis не подключен. Пропускаем установку сессии.")
-
     authorization_url = (
         f"https://{shop}/admin/oauth/authorize"
         f"?client_id={SHOPIFY_CLIENT_ID}"
@@ -174,10 +191,7 @@ def install_app():
     )
 
     print(f"🔗 Перенаправление на Shopify OAuth: {authorization_url}")
-
-    response = make_response(redirect(authorization_url))
-    session["_flashes"] = []  # 👈🏽 добавляем хоть что-то в сессию
-    return response
+    return redirect(authorization_url)
 
 
 @app.route("/auth/callback")
