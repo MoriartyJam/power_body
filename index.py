@@ -141,6 +141,8 @@ def home():
 
     if not access_token:
         print(f"🔄 Перенаправление на /install?shop={shop}")
+        # ✅ фикс: создаём сессию перед редиректом
+        session["shop"] = shop
         return redirect(f"/install?shop={shop}")
 
     print(f"✅ Токен найден, перенаправление на /admin?shop={shop}")
