@@ -13,6 +13,7 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
+from flask import session, Response
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -149,6 +150,7 @@ def home():
     return redirect(f"/admin?shop={shop}")
 
 
+
 @app.route("/install")
 def install_app():
     shop = request.args.get("shop")
@@ -159,11 +161,11 @@ def install_app():
         return "❌ Ошибка: укажите магазин Shopify", 400
 
     if redis_client.ping():
-        session.modified = True  # 🛠️ Фикс для flask_session
         session["shop"] = shop
+        session.modified = True  # 🛠️ обязательно
     else:
         print("⚠️ Redis не подключен. Пропускаем установку сессии.")
-    
+
     authorization_url = (
         f"https://{shop}/admin/oauth/authorize"
         f"?client_id={SHOPIFY_CLIENT_ID}"
@@ -172,7 +174,10 @@ def install_app():
     )
 
     print(f"🔗 Перенаправление на Shopify OAuth: {authorization_url}")
-    return redirect(authorization_url)
+
+    response = make_response(redirect(authorization_url))
+    session["_flashes"] = []  # 👈🏽 добавляем хоть что-то в сессию
+    return response
 
 
 @app.route("/auth/callback")
