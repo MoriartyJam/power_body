@@ -13,6 +13,7 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
+from flask.sessions import SessionMixin
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -65,7 +66,6 @@ app.config["SESSION_REDIS"] = redis.StrictRedis(
     decode_responses=True
 )
 
-from flask.sessions import SessionMixin
 
 class CustomSessionInterface(Session._get_interface_class()):
     def save_session(self, app, session, response):
