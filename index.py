@@ -13,7 +13,6 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
-from flask.sessions import SessionMixin
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -27,11 +26,6 @@ WSDL_URL = os.getenv('URL')
 
 app = Flask(__name__)
 CORS(app)
-# 🔵 Добавляем вот сюда:
-@app.before_request
-def ensure_session_exists():
-    session.setdefault('_initialized', True)
-    
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT"))
 REDIS_USERNAME = os.getenv("REDIS_USERNAME")
@@ -65,16 +59,6 @@ app.config["SESSION_REDIS"] = redis.StrictRedis(
     password=REDIS_PASSWORD,
     decode_responses=True
 )
-
-
-class CustomSessionInterface(Session._get_interface_class()):
-    def save_session(self, app, session, response):
-        if not session:
-            return  # 👈 если сессия пустая, ничего не сохраняем
-        return super().save_session(app, session, response)
-
-app.session_interface = CustomSessionInterface()
-
 
 # Настраиваем сессии
 Session(app)
@@ -140,30 +124,6 @@ def clear_token():
     redis_client.delete(token_key)
     print(f"🧹 Токен для {shop} удалён из Redis!")
     return f"✅ Токен для {shop} успешно удалён!"
-    
-
-@app.route("/clear_sessions")
-def clear_sessions():
-    store_name = request.args.get("store_name")  # Теперь читаем из query параметра
-
-    if not store_name:
-        return "❌ Параметр 'store_name' обязателен", 400
-
-    try:
-        session_pattern = f"session:{store_name}*"
-        matching_keys = redis_client.keys(session_pattern)
-
-        if not matching_keys:
-            return f"✅ Нет активных сессий для {store_name}", 200
-
-        deleted = redis_client.delete(*matching_keys)
-        print(f"🧹 Удалено {deleted} сессий для {store_name}")
-
-        return f"✅ Удалено {deleted} сессий для {store_name}", 200
-    except Exception as e:
-        print(f"❌ Ошибка при удалении сессий: {e}")
-        return f"❌ Ошибка при удалении сессий: {str(e)}", 500
-
 
 
 @app.route("/")
@@ -1060,7 +1020,7 @@ def start_sync_for_shop(shop, access_token):
 
     if not existing_job:
         print(f"🕒 Запуск фоновой синхронизации для {shop} каждые 120 минут.")
-        scheduler.add_job(sync_products, 'interval', minutes=120, args=[shop], id=job_id, replace_existing=True)
+        scheduler.add_job(sync_products, 'interval', minutes=1440, args=[shop], id=job_id, replace_existing=True)
 
 
 # 🔄 Запуск фоновой синхронизации при старте сервера
