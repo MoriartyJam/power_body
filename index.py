@@ -65,6 +65,17 @@ app.config["SESSION_REDIS"] = redis.StrictRedis(
     decode_responses=True
 )
 
+from flask.sessions import SessionMixin
+
+class CustomSessionInterface(Session._get_interface_class()):
+    def save_session(self, app, session, response):
+        if not session:
+            return  # 👈 если сессия пустая, ничего не сохраняем
+        return super().save_session(app, session, response)
+
+app.session_interface = CustomSessionInterface()
+
+
 # Настраиваем сессии
 Session(app)
 
