@@ -26,6 +26,11 @@ WSDL_URL = os.getenv('URL')
 
 app = Flask(__name__)
 CORS(app)
+# 🔵 Добавляем вот сюда:
+@app.before_request
+def ensure_session_exists():
+    session.setdefault('_initialized', True)
+    
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT"))
 REDIS_USERNAME = os.getenv("REDIS_USERNAME")
