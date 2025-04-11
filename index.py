@@ -13,6 +13,7 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
+from flask.sessions import NullSession
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -70,6 +71,12 @@ executors = {'default': ThreadPoolExecutor(max_workers=10)}
 scheduler = BackgroundScheduler(executors=executors)
 scheduler.start()
 
+@app.before_request
+def fix_favicon_issue():
+    if request.path == '/favicon.ico':
+        print("⚡ favicon.ico запрос — обнуляем сессию!")
+        app.session_interface.open_session = lambda app, request: NullSession()
+        return '', 204
 
 @app.before_request
 def log_request():
@@ -161,57 +168,43 @@ def install_app():
 
 @app.route("/auth/callback")
 def auth_callback():
-    shop = request.args.get("shop")
-    code = request.args.get("code")
-
-    print(f"📞 Вызван `auth_callback`")
-    print(f"🔍 Получен shop: {shop}")
-    print(f"🔍 Получен code: {code}")
-
-    if not code or not shop:
-        print("❌ Ошибка: отсутствует `code` или `shop` в `auth_callback`.")
-        return "❌ Ошибка авторизации: отсутствует `code` или `shop`", 400
-
-    token_url = f"https://{shop}/admin/oauth/access_token"
-    data = {
-        "client_id": SHOPIFY_CLIENT_ID,
-        "client_secret": SHOPIFY_API_SECRET,
-        "code": code
-    }
-
-    print(f"🔗 Отправляем запрос на {token_url} с данными: {data}")
-
-    response = requests.post(token_url, json=data)
-
-    print(f"📦 Ответ Shopify: {response.status_code} | {response.text}")
-
-    if response.status_code != 200:
-        print(f"❌ Ошибка авторизации! Shopify вернул {response.status_code} | {response.text}")
-        return f"❌ Ошибка авторизации: {response.status_code} - {response.text}", 400
-
     try:
+        shop = request.args.get("shop")
+        code = request.args.get("code")
+        print(f"🔍 shop: {shop}, code: {code}")
+
+        if not shop or not code:
+            return "❌ Отсутствует параметр shop или code", 400
+
+        token_url = f"https://{shop}/admin/oauth/access_token"
+        data = {
+            "client_id": SHOPIFY_CLIENT_ID,
+            "client_secret": SHOPIFY_API_SECRET,
+            "code": code
+        }
+
+        response = requests.post(token_url, json=data)
+        print(f"📦 Ответ Shopify: {response.status_code} | {response.text}")
+
+        if response.status_code != 200:
+            return f"❌ Ошибка авторизации: {response.status_code}", 400
+
         json_response = response.json()
         access_token = json_response.get("access_token")
         if not access_token:
-            print("❌ Ошибка: `access_token` отсутствует в ответе Shopify!")
-            return f"❌ Ошибка: `access_token` не найден в ответе Shopify: {json_response}", 400
+            return "❌ Токен отсутствует", 400
 
-        print(f"✅ Shopify вернул токен: {access_token[:8]}***")
-
-        # Сохраняем токен в Redis
         save_token(shop, access_token)
 
-        response = make_response(redirect(f"/admin?shop={shop}"))
-        response.set_cookie("shop", shop, httponly=True, samesite="None", secure=True)
+        resp = make_response(redirect(f"/admin?shop={shop}"))
+        resp.set_cookie("shop", shop, httponly=True, samesite="None", secure=True)
 
-        if redis_client.ping():
-            start_sync_for_shop(shop, access_token)
-        else:
-            print("⚠️ Redis не подключен. Синхронизация не запущена.")
+        return resp
 
     except Exception as e:
-        print(f"❌ Ошибка обработки JSON ответа Shopify: {e}")
-        return f"❌ Ошибка обработки JSON ответа Shopify: {str(e)}", 400
+        print(f"🚨 Ошибка в auth_callback: {e}")
+        return f"❌ Ошибка в auth_callback: {str(e)}", 500
+
 
 
 @app.route("/admin")
