@@ -71,14 +71,16 @@ scheduler = BackgroundScheduler(executors=executors)
 scheduler.start()
 
 
+@app.before_request
+def skip_session_for_favicon():
+    if request.path == '/favicon.ico':
+        print("⚡ Пропускаем обработку favicon.ico без работы с сессией")
+        return make_response('', 204)
+        
 
 @app.before_request
 def log_request():
     print(f"📥 Входящий запрос: {request.method} {request.url} | IP: {request.remote_addr}")
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
 
 
 def save_token(shop, access_token):
