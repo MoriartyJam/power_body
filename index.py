@@ -1012,7 +1012,7 @@ def schedule_sync():
         return
 
     for key in keys:
-        shop = key.split("shopify_token:")[-1]  # Извлекаем название магазина
+        shop = key.decode().split("shopify_token:")[-1]
         access_token = redis_client.get(key)
 
         if access_token:
