@@ -80,6 +80,9 @@ def skip_session_for_favicon():
 
 @app.before_request
 def log_request():
+    if request.endpoint == 'favicon':
+        return  # 🛑 Ничего не делаем для favicon
+
     print(f"📥 Входящий запрос: {request.method} {request.url} | IP: {request.remote_addr}")
 
 
