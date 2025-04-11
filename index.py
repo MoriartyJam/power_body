@@ -38,7 +38,7 @@ redis_client = redis.StrictRedis(
     port=REDIS_PORT,
     username=REDIS_USERNAME,
     password=REDIS_PASSWORD,
-    decode_responses=True
+    ssl=True
 )
 
 # 🔹 Shopify API настройки
@@ -58,7 +58,7 @@ app.config["SESSION_REDIS"] = redis.StrictRedis(
     port=REDIS_PORT,
     username=REDIS_USERNAME,
     password=REDIS_PASSWORD,
-    decode_responses=True
+    ssl=True
 )
 
 # Настраиваем сессии
