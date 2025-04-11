@@ -75,7 +75,7 @@ scheduler.start()
 def skip_session_for_favicon():
     if request.path == '/favicon.ico':
         print("⚡ Пропускаем обработку favicon.ico без работы с сессией")
-        request.session = None  # 👈 ВАЖНО: отключаем работу сессией
+        return make_response('', 204)
         
 
 @app.before_request
@@ -120,10 +120,7 @@ def get_token(shop):
     else:
         print(f"❌ Токен не найден в Redis для {shop} (TTL: {ttl} сек)")
         return None
-        
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
+
 
 @app.route("/")
 def home():
