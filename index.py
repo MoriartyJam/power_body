@@ -126,6 +126,25 @@ def clear_token():
     return f"✅ Токен для {shop} успешно удалён!"
 
 
+@app.route("/clear_all_sessions")
+def clear_all_sessions():
+    try:
+        pattern = "session:*"
+        keys = redis_client.keys(pattern)
+
+        if not keys:
+            print("✅ Нет сессий для удаления.")
+            return "✅ Нет сессий для удаления.", 200
+
+        deleted = redis_client.delete(*keys)
+        print(f"🧹 Удалено {deleted} старых сессий.")
+        return f"✅ Удалено {deleted} старых сессий.", 200
+    except Exception as e:
+        print(f"❌ Ошибка при удалении сессий: {e}")
+        return f"❌ Ошибка при удалении сессий: {str(e)}", 500
+
+
+
 @app.route("/")
 def home():
     shop = request.args.get("shop") or request.cookies.get("shop")
@@ -152,13 +171,9 @@ def install_app():
     print(f"📦 Установка приложения для: {shop}")
 
     if not shop:
-        print("❌ Ошибка: параметр 'shop' отсутствует")
+        print("❌ Ошибка: параметр 'shop' отсутствует в install.")
         return "❌ Ошибка: укажите магазин Shopify", 400
 
-    if redis_client.ping():
-        session["shop"] = shop
-    else:
-        print("⚠️ Redis не подключен. Пропускаем установку сессии.")
     authorization_url = (
         f"https://{shop}/admin/oauth/authorize"
         f"?client_id={SHOPIFY_CLIENT_ID}"
@@ -166,8 +181,9 @@ def install_app():
         f"&redirect_uri={REDIRECT_URI}"
     )
 
-    print(f"🔗 Перенаправление на Shopify OAuth: {authorization_url}")
+    print(f"🔗 Перенаправляем пользователя на Shopify OAuth: {authorization_url}")
     return redirect(authorization_url)
+
 
 
 @app.route("/auth/callback")
@@ -175,13 +191,13 @@ def auth_callback():
     shop = request.args.get("shop")
     code = request.args.get("code")
 
-    print(f"📞 Вызван `auth_callback`")
-    print(f"🔍 Получен shop: {shop}")
-    print(f"🔍 Получен code: {code}")
+    print(f"📞 Пришёл OAuth callback!")
+    print(f"🛍️ Магазин: {shop}")
+    print(f"🧩 Код авторизации: {code}")
 
-    if not code or not shop:
-        print("❌ Ошибка: отсутствует `code` или `shop` в `auth_callback`.")
-        return "❌ Ошибка авторизации: отсутствует `code` или `shop`", 400
+    if not shop or not code:
+        print("❌ Ошибка: отсутствует `shop` или `code` в callback.")
+        return "❌ Ошибка авторизации", 400
 
     token_url = f"https://{shop}/admin/oauth/access_token"
     data = {
@@ -190,39 +206,35 @@ def auth_callback():
         "code": code
     }
 
-    print(f"🔗 Отправляем запрос на {token_url} с данными: {data}")
-
+    print(f"📤 Отправляем запрос на получение access_token в Shopify: {token_url}")
     response = requests.post(token_url, json=data)
 
-    print(f"📦 Ответ Shopify: {response.status_code} | {response.text}")
+    print(f"📦 Ответ от Shopify: {response.status_code} | {response.text}")
 
     if response.status_code != 200:
-        print(f"❌ Ошибка авторизации! Shopify вернул {response.status_code} | {response.text}")
-        return f"❌ Ошибка авторизации: {response.status_code} - {response.text}", 400
+        print(f"❌ Ошибка получения токена от Shopify: {response.status_code}")
+        return f"❌ Ошибка авторизации: {response.text}", 400
 
     try:
         json_response = response.json()
         access_token = json_response.get("access_token")
         if not access_token:
-            print("❌ Ошибка: `access_token` отсутствует в ответе Shopify!")
-            return f"❌ Ошибка: `access_token` не найден в ответе Shopify: {json_response}", 400
+            print("❌ Ошибка: в ответе нет access_token!")
+            return "❌ Ошибка получения токена.", 400
 
-        print(f"✅ Shopify вернул токен: {access_token[:8]}***")
-
-        # Сохраняем токен в Redis
+        print(f"✅ Токен успешно получен: {access_token[:8]}***")
         save_token(shop, access_token)
 
         response = make_response(redirect(f"/admin?shop={shop}"))
         response.set_cookie("shop", shop, httponly=True, samesite="None", secure=True)
-
-        if redis_client.ping():
-            start_sync_for_shop(shop, access_token)
-        else:
-            print("⚠️ Redis не подключен. Синхронизация не запущена.")
+        print(f"🍪 Кука для магазина установлена: shop={shop}")
+        print(f"➡️ Перенаправляем на /admin?shop={shop}")
+        return response
 
     except Exception as e:
-        print(f"❌ Ошибка обработки JSON ответа Shopify: {e}")
-        return f"❌ Ошибка обработки JSON ответа Shopify: {str(e)}", 400
+        print(f"❌ Ошибка обработки токена: {e}")
+        return "❌ Ошибка обработки токена", 400
+
 
 
 @app.route("/admin")
