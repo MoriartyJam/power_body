@@ -13,6 +13,7 @@ from datetime import datetime
 from flask import send_file
 import redis
 import re
+from flask.sessions import NullSession
 
 CSV_DIR = "./csv_reports"  # Папка для хранения CSV-файлов
 os.makedirs(CSV_DIR, exist_ok=True)  # Создаём папку, если её нет
@@ -72,16 +73,11 @@ scheduler.start()
 
 
 @app.before_request
-def skip_session_for_favicon():
+def handle_requests():
     if request.path == '/favicon.ico':
-        print("⚡ Пропускаем обработку favicon.ico без работы с сессией")
-        return make_response('', 204)
-        
-
-@app.before_request
-def log_request():
-    if request.endpoint == 'favicon':
-        return  # 🛑 Ничего не делаем для favicon
+        print("⚡ favicon.ico запрос — обнуляем сессию и возвращаем 204")
+        session = NullSession()
+        return '', 204
 
     print(f"📥 Входящий запрос: {request.method} {request.url} | IP: {request.remote_addr}")
 
