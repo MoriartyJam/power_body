@@ -71,9 +71,14 @@ scheduler = BackgroundScheduler(executors=executors)
 scheduler.start()
 
 
+
 @app.before_request
 def log_request():
     print(f"📥 Входящий запрос: {request.method} {request.url} | IP: {request.remote_addr}")
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
 
 
 def save_token(shop, access_token):
