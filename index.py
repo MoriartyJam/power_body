@@ -999,8 +999,8 @@ def start_sync_for_shop(shop, access_token):
     existing_job = scheduler.get_job(job_id)
 
     if not existing_job:
-        print(f"🕒 Запуск фоновой синхронизации для {shop} каждые 120 минут.")
-        scheduler.add_job(sync_products, 'interval', minutes=5, args=[shop], id=job_id, replace_existing=True)
+        print(f"🕒 Запуск фоновой синхронизации для {shop} каждые 600 минут.")
+        scheduler.add_job(sync_products, 'interval', minutes=600, args=[shop], id=job_id, replace_existing=True)
 
 
 # 🔄 Запуск фоновой синхронизации при старте сервера
